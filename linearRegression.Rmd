@@ -1,0 +1,185 @@
+---
+title: "Linear Regression"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(caret)
+options(scipen = 999)
+```
+
+```{r importing}
+train <- read.csv("train.csv",stringsAsFactors = FALSE)
+train <- train %>% 
+  select_if(is.numeric)
+mymod <- lm(SalePrice~.,data=train,na.action = "na.omit")
+```
+
+
+```{r conf and pred intervals}
+confint(mymod,level = .95)
+#predict(mymod,data.frame(x1=.,x2=.,x3=...),interval="confidence"or"prediction")
+
+```
+
+# Interaction Terms
+```{r interaction terms}
+# add one interaction term
+
+oneinteraction <- lm(SalePrice~MSSubClass*LotFrontage+.,data=train)
+oneinteraction
+
+lminteractions <- lm(SalePrice~.^2,data=train)
+#summary(lminteractions)
+
+```
+
+# Polynomial Terms and Log
+
+```{r polynomial terms}
+
+polymod <- lm(SalePrice~poly(LotArea,2),data=train)
+summary(polymod)
+
+# log of predictor
+logmod <- lm(SalePrice~log(LotArea),data=train)
+summary(logmod)
+
+
+```
+
+# Partial F test
+
+tests if model with added predictors is better. Statistically significant means better.
+
+```{r partial f test}
+mymod1 <- lm(SalePrice~LotArea,data=train)
+mymod2 <- lm(SalePrice~poly(LotArea,2),data=train)
+anova(mymod1,mymod2)
+```
+
+# Assumptions of Linear Regression
+
+## Outliers
+```{r outliers}
+library(MASS,include.only = "studres")
+studentized <- lm(SalePrice~LotArea,data=train)
+studResiduals <- studres(studentized)
+head(studResiduals)
+studDF <- data.frame(predictor=train$LotArea,studResid=studResiduals)
+ggplot(studDF,aes(x=predictor,y=studResid))+
+  geom_point()
+
+train <- cbind(train,stud=studDF$studResid)
+names(train)
+train %>% 
+  select(stud,LotArea,SalePrice) %>% 
+  arrange(stud) %>% 
+  head()
+```
+
+## Cooks distance
+
+```{r cooks distance}
+plot(cooks.distance(lm(SalePrice ~ LotArea + LotFrontage, data=train)))
+
+as.data.frame(cooks.distance(lm(SalePrice~.,data=train))) %>% 
+  arrange(desc(.)) %>% 
+  head()
+
+```
+
+## Multicollinearity
+
+Variance inflation factors, above 5 is cause for concern, 10 is high. 
+```{r variance inflation factors}
+train <- read.csv("train.csv",stringsAsFactors = FALSE)
+train <- train %>% select_if(is.numeric)
+# wont run if high correlations
+train <- train[,-findCorrelation(cor(train,use="complete.obs"),cutoff = .8)]
+
+mymod <- lm(SalePrice~.,data=train,na.action="na.omit")
+library(car)
+as.data.frame(vif(mymod)) %>% 
+  arrange(desc(.)) %>% 
+  head()
+
+```
+
+
+## Correlations
+
+Highly correlated predictors
+```{r corr plot}
+library(corrplot)
+corrplot(cor(train,use="complete.obs"))
+
+findCorrelation(cor(train,use="complete.obs"),cutoff = .8,verbose=TRUE)
+
+train[,findCorrelation(cor(train,use="complete.obs"),cutoff = .8,verbose=TRUE)]
+
+cor(train[,27],train[,28],use="complete.obs")
+```
+
+
+Finding all correlations between the independent variables and the dependent variable. 
+```{r find correlations}
+SalePriceCorrelations <- as.data.frame(sapply(train,function(x) cor(x,train$SalePrice,use="complete.obs")))
+
+names(SalePriceCorrelations) <- c("correlation")
+
+SalePriceCorrelations %>% 
+  filter(abs(correlation)>.5) %>% 
+  arrange(desc(correlation))
+
+```
+
+## High Leverage
+
+```{r high leverage points}
+# hatvalues are leverage values, or unusual predictor values
+
+plot(hatvalues(mymod))
+hatvalues(mymod) %>% 
+  as.data.frame(.) %>% 
+  arrange(desc(.)) %>% 
+  head()
+```
+
+## Heteroscedasticity
+```{r heteroscedasticity}
+# if less than .05 then heteroscedasticity exists
+library(lmtest)
+bptest(mymod)
+```
+# Feature Selection Methods
+
+## Forward Selection, backward, stepwise
+
+```{r forward selection}
+train <- train[complete.cases(train),]
+#leapBackward, leapForward, leapSeq(stepwise)
+library(caret)
+
+ctrl <- trainControl(method="cv",number=10)
+set.seed(147)
+stepmodel <- train(SalePrice~.,data=train,
+                   method="leapForward",
+                   tuneGrid=expand.grid(nvmax=1:30),
+                   trControl=ctrl)
+stepmodel$bestTune
+stepmodel
+stepmodel$results
+stepmodel$finalModel
+summary(stepmodel$finalModel)
+# coefficients of final model
+coef(stepmodel$finalModel,20)
+
+```
