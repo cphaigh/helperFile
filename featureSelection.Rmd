@@ -1,0 +1,168 @@
+---
+title: "Feature Selection"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+
+# Feature Selection
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(dplyr)
+library(TH.data)
+library(caret)
+data("GlaucomaM",package="TH.data")
+mydf <- GlaucomaM
+```
+
+# Boruta
+
+Wrapper algorithm around random forest. 
+
+1) Adds randomness to a given data set by creating shuffled copies of all features (which are called shadow features).
+
+2) Trains a random forest classifier on the extended data set and applies a feature importance measure (the default is mean decrease accuracy) to evaluate the importance of each feature where higher means more important. 
+
+3) At every iteration, it checks whether a real feature has a higher importance than the best of its shadow features. (whether the feature has a higher z scoret than the maximum z score of its shadow features) and consistently removes features that are deemed highly unimportant. 
+
+4) Algorithm stops when all features get confirmed or rejected or it reaches a specified limit of random forest runs. 
+
+
+
+```{r boruta}
+library(Boruta)
+borutaoutput <- Boruta(Class~.,data=na.omit(mydf),doTrace=0)
+borutaoutput
+
+plot(borutaoutput, cex.axis=.7, las=2, xlab="", main="Variable Importance")
+
+finalBoruta <- TentativeRoughFix(borutaoutput)
+borutaDF <- attStats(finalBoruta)
+borutaDF
+getConfirmedFormula(borutaoutput)
+```
+# Random Forest
+
+```{r random forest}
+rfmod <- train(Class~.,data=mydf,method="rf")
+varImp(rfmod)$importance %>% 
+  as.data.frame()
+
+rfmoddataframe <- varImp(rfmod)
+rfmoddataframe
+plot(rfmoddataframe,top=40)
+```
+
+# Recursive Feature Engineering
+
+Trains on all variables, drops the least important predictor, then trains the model on p-1 predictors. Repeats until 1 predictor, chooses the subset of predictors that scored the best. 
+
+```{r}
+# using recursive feature engineering
+data(mpg)
+head(mpg)
+
+ctrl <- rfeControl(functions = rfFuncs,
+                   method = "cv",
+                   verbose = FALSE)
+set.seed(12345)
+rfe.train <- rfe(hwy~.,data=mpg,
+                 sizes = 1:ncol(mpg)-1,
+                 rfeControl = ctrl)
+
+rfe.train$optVariables
+
+varimp_data <- data.frame(feature = row.names(varImp(rfe.train))[1:20],
+                          importance = varImp(rfe.train)[1:20, 1])
+varimp_data
+
+ggplot(data = varimp_data, 
+       aes(x = reorder(feature, -importance), y = importance, fill = feature)) +
+  geom_bar(stat="identity") + labs(x = "Features", y = "Variable Importance") + 
+  geom_text(aes(label = round(importance, 2)), vjust=1.6, color="black", size=4) + 
+  theme_bw() + theme(legend.position = "none")
+
+```
+
+# Genetic Algorithms
+
+1) Creates a random binary string.
+
+2) Assigns a fitness score to each individual
+
+```{r genetic alrogithms}
+# Define control function
+ga_ctrl <- gafsControl(functions = rfGA,  # another option is `caretGA`.
+                       method = "cv",
+                       number=3)
+
+dependent <- mydf[,1]
+predictors <- mydf[,2:8]
+
+ga_obj <- gafs(x=predictors,y=dependent,
+               iters = 5,   # normally much higher (100+)
+               gafsControl = ga_ctrl,
+               method="lm")
+
+ga_obj2 <- gafs(x=predictors,y=dependent,
+               iters = 5,   # normally much higher (100+)
+               gafsControl = ga_ctrl)
+
+
+ga_obj
+ga_obj2
+ga_obj$optVariables
+ga_obj2$fit
+
+
+
+```
+
+# Information Gain
+
+```{r information gain}
+
+# information value
+library(FSelector)
+
+# get information gain results
+?information.gain
+infoGain <- information.gain(as~.,data=mydf) %>% 
+  as.data.frame() %>% 
+  arrange(desc(attr_importance))
+infoGain
+```
+
+# Filter Methods
+
+For scores less than .05 statistically significant.
+
+For binary dependent variable:
+
+
+```{r filter methods}
+pScore <- function(x,y){
+  numX <- length(unique(x))
+  if(numX>2){
+    out <- t.test(x~y)$p.value
+  }else{
+    #binary predictor
+    out <- fisher.test(factor(x),y)$p.value
+  }
+  out
+}
+
+mydf$dependent <- rep(c(0,1),98)
+scores <- apply(X=mydf[,2:10],
+                MARGIN = 2,
+                FUN=pScore,
+                y=mydf$dependent)
+
+scoresDF <- as.data.frame(scores)
+scoresDF %>% 
+  arrange(scores)
+```
