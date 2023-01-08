@@ -1,0 +1,46 @@
+---
+title: "KNN"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+```{r}
+library(e1071)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+train <- iris
+train <- train %>% select(-Species)
+```
+
+
+
+```{r}
+knnMod <- train(Sepal.Length~.,data=train,
+                method="knn",
+                tuneGrid=expand.grid(k=c(1,2,3)))
+# for classification use knn3, part of caret package
+mod1 <- knnreg(Sepal.Length~.,data=train,k=3)
+predict(mod1,train)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

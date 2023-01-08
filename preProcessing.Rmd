@@ -1,0 +1,81 @@
+---
+title: "pre-processing"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+```{r}
+library(dplyr)
+library(caret)
+library(ggplot2)
+```
+
+# Skewness
+
+Lambda values:
+
+2=square
+
+.5=square root
+
+-1=inverse
+
+0=log
+
+1=do nothing
+
+```{r}
+
+mydf <- iris
+head(mydf)
+sapply(mydf[,1:4],function(x) BoxCoxTrans(x))
+```
+
+# Center/Scale
+
+```{r}
+standardCenter <- preProcess(mydf,method=c("BoxCox","center","scale"))
+newData <- predict(standardCenter,mydf)
+head(newData)
+```
+
+# Imputation
+
+```{r}
+mydf[c(1,5,10,15),1] <- NA
+```
+
+```{r}
+set.seed(123)
+bagImpute <- preProcess(mydf,method="bagImpute")
+imputedTrees <- predict(bagImpute,mydf)
+imputedTrees
+```
+
+
+```{r}
+mydf[c(1,5,10,15),1] <- NA
+```
+
+
+```{r}
+set.seed(123)
+knnImpute <- preProcess(mydf,method="knnImpute")
+imputedknn <- predict(knnImpute,mydf)
+imputedknn
+```
+
+# Dummy Vars
+
+```{r}
+# Full rank drops one of the levels
+makeDummy <- dummyVars(~.,data=mydf,fullRank = TRUE)
+dummyDF <- predict(makeDummy,mydf)
+dummyDF
+```
+
+

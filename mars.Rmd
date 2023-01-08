@@ -1,0 +1,88 @@
+---
+title: "MARS"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+# Mars
+
+Uses surrogate features that are two contrasted versions of a predictor to enter the model. The surrogate features are generally only a function of one or two predictors at a time. Creates cut-points that are called hinges. Creates a piece wise linear model where each new feature models an isolated portion of the original data. Cut-points are chosen at the point that achieves the smallest error.
+
+example: 
+
+h(x)=x if x>0, 0 if x<0
+
+-5 + 2.1 * h(x1-5.9) + 3 * h(5.9-x1)
+
+After the hinge functions are created, the GCV statistic is used to prune the model. 
+
+Tuning parameters: degree of the features, if one then it is additive. Number of retained terms which is found using GCV. 
+
+Pros: performs feature selection automatically. Interpretability, each hinge function is responsible for modeling a specific region in the predictor space using a piece wise linear model. When the model is additive, the contribution of each predictor can be isolated without the need to consider the others. 
+
+When second degree, the hinge functions are split into two regions, three of the possible four regions will be zero and offer no contribution to the model. Correlated predictors do not drastically effect performance, but can complicate interpretability as which predictor is chosen can be random. RMSE reduction from predictors can be used as a measure of variable importance.  
+
+```{r}
+library(dplyr)
+library(caret)
+library(earth)
+```
+
+
+```{r}
+train <- read.csv("train.csv")
+head(train)
+train <- train %>% select(YearBuilt,SalePrice,OverallQual,LotArea,MasVnrArea,BsmtQual)
+train <- train[complete.cases(train),]
+```
+
+# Basic Mars
+
+```{r}
+marsModel <- earth(SalePrice~.,data=train)
+marsModel
+summary(marsModel)
+```
+
+```{r}
+plotmo(marsModel)
+```
+
+# With Train
+
+```{r}
+set.seed(342)
+myMod <- train(SalePrice~.,data=train,
+               
+               method="earth",
+               tuneGrid=expand.grid(.degree=c(1,2),.nprune=2:10))
+
+myMod
+
+summary(myMod)
+```
+
+```{r}
+plotmo(myMod)
+```
+
+# Variable Importance
+
+```{r}
+varImp(myMod)
+```
+
+
+
+
+
+
+
+
+
+
+

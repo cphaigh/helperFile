@@ -1,0 +1,49 @@
+---
+title: "cross validation without caret"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+
+```{r}
+# install and load the caret package
+library(caret)
+
+mydf <- iris[,1:4]
+# fit a linear regression model
+fit <- lm(Sepal.Length ~ ., data = mydf)
+
+# create 10 folds
+folds <- createFolds(mydf$Sepal.Length, k = 10)
+
+
+# create a vector to store the evaluation metric for each iteration
+evaluation <- c()
+
+# loop over the folds
+for (i in 1:length(folds)) {
+  
+  # extract the training and test sets for this iteration
+  train <- mydf[-folds[[i]],]
+  test <- mydf[folds[[i]],]
+  
+  # fit the model on the training set
+  fit <- lm(Sepal.Length ~ ., data = mydf)
+  
+  # predict on the test set
+  pred <- predict(fit, test)
+  
+  # evaluate the model on the test set #mse
+  evaluation[i] <- mean((pred - test$Sepal.Length)^2)
+}
+
+# calculate the mean evaluation metric
+mean(evaluation)
+```
+
+
+

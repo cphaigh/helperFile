@@ -29,6 +29,19 @@ confint(mymod,level = .95)
 
 ```
 
+# One-Tailed t-test
+
+Used to test if the mean if above or below some threshold. 
+```{r}
+
+head(train)
+t.test(train$OverallCond, mu = 2,
+              alternative = "greater")
+t.test(train$OverallCond, mu = 2,
+              alternative = "less")
+```
+
+
 # Interaction Terms
 ```{r interaction terms}
 # add one interaction term
@@ -183,3 +196,60 @@ summary(stepmodel$finalModel)
 coef(stepmodel$finalModel,20)
 
 ```
+
+
+# Ridge
+
+enet with alpha = 0. Uses the l2 penalty, which is SSE + $\sum_{j=1}^{m}\beta_{j}^{2}$
+
+```{r}
+library(glmnet)
+head(train)
+ridgeMod <- train(SalePrice~OverallQual+LotArea,data=train,
+                  method="enet",
+                  tuneGrid=expand.grid(fraction=0,lambda=c(.01,.1,.2)))
+ridgeMod
+
+x <- data.matrix(train[,c("LotArea","OverallQual")])
+y <- train$SalePrice
+names(train)
+cv_model <- cv.glmnet(x=x,y=y, alpha = 0,)
+cv_model
+#find optimal lambda value that minimizes test MSE
+best_lambda <- cv_model$lambda.min
+best_lambda
+plot(cv_model)
+
+best_model <- glmnet(x, y, alpha = 0, lambda = best_lambda)
+coef(best_model)
+```
+
+# Lasso
+
+enet with alpha = 1. Uses the l1 penalty, which is SSE + $\sum_{j=1}^{m}|\beta_{j}|$
+
+```{r}
+head(train)
+lassoMod <- train(SalePrice~OverallQual+LotArea,data=train,
+                  method="enet",
+                  tuneGrid=expand.grid(fraction=1,lambda=c(.01,.1,.2)))
+ridgeMod
+
+x <- data.matrix(train[,c("LotArea","OverallQual")])
+y <- train$SalePrice
+names(train)
+cv_model <- cv.glmnet(x=x,y=y, alpha = 1)
+cv_model
+#find optimal lambda value that minimizes test MSE
+best_lambda <- cv_model$lambda.min
+best_lambda
+plot(cv_model)
+
+best_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+coef(best_model)
+```
+
+
+
+
+

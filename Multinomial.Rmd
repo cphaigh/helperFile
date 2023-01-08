@@ -1,0 +1,149 @@
+---
+title: "Multinomial"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+There are several ways to perform multiclass classification in R. Here are three approaches you can try:
+
+One-versus-all (OvA) method: This method involves training a separate binary classifier for each class, where the class is treated as the positive case and all other classes are treated as the negative case. At prediction time, you would run the input through each classifier and select the class that is predicted with the highest probability.
+
+One-versus-one (OvO) method: This method involves training a binary classifier for every pair of classes. For example, if you have three classes, you would train three classifiers: one to distinguish between class 1 and class 2, one to distinguish between class 1 and class 3, and one to distinguish between class 2 and class 3. At prediction time, you would run the input through all the classifiers and use a voting system to determine the final class label.
+
+Multinomial logistic regression: This method involves training a single logistic regression model with multiple output units, one for each class. The model would be trained to predict the probability of each class for a given input. At prediction time, you would select the class with the highest predicted probability.
+
+
+
+# GBM multiclass
+
+```{r}
+library(gbm)
+library(caret)
+data(iris)
+fitControl <- trainControl(method="cv",
+                           number=10,
+                           verboseIter=TRUE)
+set.seed(825)
+gbmFit <- train(Species ~ ., data=iris,
+                method="gbm",
+                trControl=fitControl,
+                verbose=FALSE)
+gbmFit
+summary(gbmFit)
+head(predict(gbmFit,iris,type="prob"))
+gbm.pred <- predict(gbmFit,iris,type="raw")
+head(gbm.pred)
+
+confusionMatrix(gbm.pred, iris$Species)
+```
+
+# Multinomial Logistic Regression
+
+$ln\left(\frac{P(y=group2)}{P(y=group1)}\right)$=$\beta_{0}+\beta_{1}x_{1}...$
+
+$ln\left(\frac{P(y=group3)}{P(y=group1)}\right)$=$\beta'_{0}+\beta'_{1}x_{1}...$
+
+```{r}
+library(nnet)
+library(caret)
+```
+
+
+```{r}
+mydf <- iris
+
+myMod <- multinom(Species~.,data=mydf)
+myMod
+```
+
+```{r}
+fit.control <- trainControl(method = "cv", number = 10)
+
+set.seed(123)  
+fit <- train(Species ~., data = iris, method = "multinom", trControl = fit.control, trace = FALSE)
+
+fit
+
+confusionMatrix(fit)
+```
+
+# Classification Tree
+
+```{r}
+library(rpart)
+library(rpart.plot)
+```
+
+
+
+```{r}
+mytree <- rpart(Species ~ ., data = iris)
+rpart.plot(mytree)
+```
+
+```{r}
+set.seed(123)
+classificationTreeTrain <- train(Species ~ ., data = iris, method = "rpart", trControl = trainControl(method="cv",number=10))
+classificationTreeTrain
+```
+
+# Random Forest
+
+```{r}
+library(randomForest)
+library(caret)
+```
+
+
+```{r}
+rfMod <- randomForest(Species~.,data=mydf)
+rfMod
+```
+
+
+
+```{r}
+myMod <- train(Species~.,data=mydf,
+               trControl=trainControl(method="cv",number=10),
+               method="rf")
+myMod
+
+```
+
+
+# Ordered
+
+## Cumulative Logit
+
+$\ln\left(\frac{P(y\le bad)}{P(y>bad)}\right)$=$\beta_{0}+\beta_{1}x1...$
+
+$\ln\left(\frac{P(y\le medium)}{P(y>medium)}\right)$=$\beta'_{0}+\beta_{1}x1...$
+
+With the cumulative logit model only the $\beta_{0}$ coefficients will change, the predictors coefficient estimates will stay the same. An effect of this is the ratio between the odds between different predictions, such as the odds between bad and medium for an observation is the same regardless of the observation values. For instance, for an observation with x1 value of 5 and an observation with x1 value of 10 will produce the same ratio for the odds between medium and bad.
+
+
+```{r}
+library(MASS)
+```
+
+```{r}
+mydf <- iris
+mydf$Species <- relevel(mydf$Species,"virginica")
+mydf$Species <- as.ordered(mydf$Species)
+orderedMod <- polr(Species ~ ., data = mydf,Hess = TRUE)
+orderedMod
+```
+
+
+
+
+
+
+
+
+
+

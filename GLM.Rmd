@@ -1,0 +1,174 @@
+---
+title: "GLM"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+# Binomial Output
+
+```{r}
+mydf <- iris[1:100,]
+mydf$Species <- as.character(mydf$Species)
+mydf$Species <- as.factor(mydf$Species)
+myMod <- glm(Species~.,data=mydf,family=binomial(link="logit")) #link=c("probit","cloglog")
+myMod
+```
+
+```{r}
+exp(confint.default(myMod))
+head(predict(myMod,mydf,type="response"))
+```
+
+
+# Poisson
+
+```{r}
+library(dplyr)
+```
+For a one unit increase in x, we can expect the count to be multiplied by eb1.
+
+Pearson Chi square: $\sum_{i=1}^{n} \frac{(y_{i}-\hat{y})^{2}}{\hat{y}}$
+
+$\hat{y}$=predicted lambda
+
+```{r}
+# Fit the model
+mydf <- read.csv("train.csv")
+mydf <- mydf %>% select(OverallQual,SalePrice,TotalBsmtSF,YearBuilt)
+poissonMod <- glm(OverallQual~., family = poisson(link="log"), data = mydf)
+
+# Summary of the model
+summary(poissonMod)
+
+```
+
+```{r}
+head(predict(poissonMod, mydf, type = "response"))
+```
+
+
+
+# Poisson with Exposures
+
+When the time intervals or number of observations over which counts are recorded are not the same we can use poisson with exposures. For example, if trying to figure out which subject in a school is the easiest you might count the number of A’s received in each subject. Which ever one has the most number of A’s you could deem the easiest. However, there is a problem with this approach. What if the number of students in each subject is not the same. For instance, if a subject has 30 students and receives 25 A’s this is much likely an easier subject than a subject with one-hundred students and receives 30 A’s.
+
+To adjust for this disparity in students size of a subject we add exposures. The predictions can then be interpreted as the number of A’s per student for each subject. Whichever subject results in the highest proportion of A’s would be called the easiest.
+
+The formula of adding exposures is similar to poisson, but now it starts as a ratio:
+
+A′sReceivedstudent=eβ0+β1x1
+
+ln(A′sReceivedstudent)=β0+β1x1
+
+ln(A′sReceived)=β0+β1x1+ln(student)offset
+
+Offset is used to adjust for the different exposure of the dependent variable.
+
+```{r}
+mydf <- data.frame(class=c("math","science","history"),A=c(5,8,10),students=c(10,20,30))
+mydf$class <- as.factor(mydf$class)
+
+myMod <- glm(A~class+offset(log(students)),data=mydf,family="poisson")
+myMod
+
+predict(myMod,data.frame(class=c("math","science","history"),students=c(1,1,1)),type="response")
+
+
+```
+
+# Over dispersion
+
+Variance is greater than the mean.
+
+Can handle over dispersion: negative binomial, zeroinflated, hurdle, heterogeneity.
+
+```{r}
+library(MASS)
+library(dplyr)
+```
+
+## Negative Binomial
+
+```{r}
+# Fit the model
+mydf <- read.csv("train.csv",stringsAsFactors = FALSE)
+
+mydf <- mydf %>% 
+  dplyr::select(OverallQual,SalePrice,TotalBsmtSF,YearBuilt)
+
+negBinMod <- glm.nb(OverallQual ~ ., data = mydf)
+
+# Summary of the model
+summary(negBinMod)
+
+head(predict(negBinMod,mydf,type="response"))
+
+
+```
+
+If very large value than negative binomial is favored over poisson.
+
+```{r}
+pchisq(2 * (logLik(poissonMod) - logLik(negBinMod)), df = 1, lower.tail = FALSE)
+```
+
+
+## Zero Inflated
+
+Sometimes in insurance a policy holder might not report a claim in the fear of increasing rates. This can lead to an excess of zeros in the data. Some of these zero are simply from the sampling where a policy holder didn’t occur any type of accident. While the rest of these zeros are from policy holders that had an accident but chose not to report it. One model that can handle this type of data is the zero-inflated model.
+
+The zero-inflated model works by building two models. The first is a model to handle binary data such as a logistic model. Its outcome tells us whether the zeros come from non reporting, or if they are real zero’s, which in this case means did not have an accident. The P(y=1) from this model represents that an accident occurred, but was not reported. The second model built is to predict the counts of the number of claims. It is generally a poisson or negative binomial. Together, the pmf of the two models is:
+
+$π_{i}+(1−π_{i})g_{i}(0)$ if j=0
+
+$(1−π_{i})g_{i}(j)$ if j ≠ 0
+
+-$g_{i}(j)$ is the predicted probability of count for poisson model
+
+```{r}
+library(pscl)
+```
+
+
+```{r}
+mydf2 <- rbind(mydf,data.frame(OverallQual=rep(0,50),SalePrice=mydf[1:50,"SalePrice"],TotalBsmtSF=mydf[1:50,"TotalBsmtSF"],YearBuilt=mydf[1:50,"YearBuilt"]))
+
+zeroinf <- zeroinfl(OverallQual~., data = mydf2, dist = "poisson") #dist="negbin"
+
+summary(zeroinf)
+
+head(predict(zeroinf,mydf2,type="response"))
+```
+
+## Hurdle Model
+
+A hurdle model is another method to use when there are an excess number of zeros. The zeros in this case represent not overcoming the “hurdle”. The example used in Regression Modeling and Financial Concepts is that a person must first seek out health care, and then after the desire for health care they must decide on the amount of health care. The seeking out of the health care in this example is the hurdle, as it must take place for the second part of the process which is the amount of health care to take place. The pmf for a hurdle model is:
+
+π if j=0
+
+$(1−π)\frac{g_{i}(j)}{1−g_{i}(0)}$ if j ≠ 0
+
+-π is the probability of not overcoming the hurdle
+
+The $\frac{g_{i}(j)}{1−g_{i}(0)}$ represents a truncated poisson distribution where:
+
+$P(Y=y|y>0)=\frac{p(y=y)}{p(y>0)}=\frac{p(y=y)}{1−p(y=0)}$
+
+
+```{r}
+hurdleMod <- hurdle(OverallQual~., data = mydf2, dist = "negbin")
+summary(hurdleMod)
+
+head(predict(hurdleMod,mydf2))
+```
+
+
+
+
+
+
+

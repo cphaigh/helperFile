@@ -1,0 +1,143 @@
+---
+title: "SVM"
+author: "Coreys Notes"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 3
+---
+
+# SVM for Regression
+
+SVM- Observations within a chosen threshold do not contribute to the model. Since squared residuals are not used, large outliers have a limited effect on the regression equation. If a threshold is set large enough, only the outliers will define the regression line. The points outside the threshold are known as support vectors.
+
+Goal is to minimize the sum of squared parameters, subject to the error being small enough.
+
+With penalized regression, we minimize the error, subject to the parameters being small enough. 
+
+SVM for regression minimizes: $cost\sum_{i=1}^{n} L_{\epsilon}(y_{i}-\hat{y}_{i})+\sum_{j=1}^{p}\beta^{2}_{j}$
+
+$L_{\epsilon}(.)$-$\epsilon$-insensitive function. Threshold set by the user. Generally cost has more of an effect on controlling flexibility than threshold chosen. 
+
+Cost- The cost penalty that is set by the user, which penalizes large residuals. As cost increases the flexibility of the model increases.
+
+Kernels: used when the data is not linear. 
+
+types- linear, polynomial, radial basis function, hyperbolic tangent. Gererally used radial basis, unless data is truly linear in which case use linear. 
+
+parameters for kernels:
+
+polynomial- degree
+
+radial- sigma which controls the scale. can be found algebraicly instead of as tuning parameter.
+
+# Pre-processing
+
+Scale matters so center and scale predictors. 
+
+
+## Example
+
+```{r}
+library(dplyr)
+library(caret)
+library(kernlab)
+```
+
+
+
+```{r}
+train <- read.csv("train.csv")
+train <- train %>% select(YearBuilt,SalePrice,OverallQual,LotArea,MasVnrArea,BsmtQual)
+train <- train[complete.cases(train),]
+```
+
+```{r}
+centerScale <- preProcess(train,method=c("center","scale"))
+trainClean <- predict(centerScale,train)
+
+makeDummy <- dummyVars(~.,data=trainClean,fullRank = TRUE)
+trainClean <- predict(makeDummy,trainClean)
+head(trainClean)
+```
+
+
+```{r}
+# rbfdot=radial, polydot=polynomial, vanilladot=linear
+svmMod <- ksvm(SalePrice~.,data=trainClean,kernel="rbfdot",kpar="automatic",C=1,epsilon=.1)
+
+svmMod
+```
+
+## With caret
+
+```{r}
+set.seed(123)
+svmModCaret <- train(SalePrice~.,data=trainClean,
+                     method="svmRadial",#svmLinear,svmPoly
+                     tuneLength=3,
+                     trControl=trainControl(method="cv"))
+svmModCaret
+svmModCaret$finalModel
+```
+
+# SVM for Classification
+
+center and scale.
+
+Margin- the distance between the classification boundary and the closest training set point. In order to choose the appropriate line to divide the data it is chosen to maximize the boundary. If not, there would be infinite possible solutions to perfectly divide a two level class. The slope and intercept of the boundary are chosen to maximize the buffer between the boundary and the data and is known as the maximum margin classifier. When the classes are perfectly separable, only points that lie on the boundary are used to make predictions, and are known as the support vectors.
+
+When the classes are not perfectly serperable, a cost parameter can be used for observations that are on the boundary or on the the wrong side of the boundary. Increasing the cost tuning parameter makes the model more flexible. 
+
+Kernels: linear, polynomial, radial, and hyperbolic.
+
+The weights can be changed for a classification svm. For example, with the function below the false-negative error becomes five times more costly than a false-positive error. 
+
+
+```{r}
+class.weights=c(successful=1,unsuccessful=5)
+```
+
+```{r}
+library(kernlab)
+library(dplyr)
+library(caret)
+```
+
+
+
+```{r}
+mydf <- iris[1:100,]
+mydf$Species <- as.character(mydf$Species)
+mydf$Species <- as.factor(mydf$Species)
+head(mydf)
+```
+
+```{r}
+
+set.seed(5767)
+svmClass <- train(Species~.,data=mydf,
+                  method="svmRadial",
+                  metric="ROC",
+                  preProc=c("center","scale"),
+                  tuneGrid=expand.grid(sigma=sigest(as.matrix(mydf[,-5]))[1],#estimation for radial basis kernel
+                                       C=2^(seq(-4,4))),
+                  fit=FALSE,
+                  trControl=trainControl(method="cv",
+                                         classProbs = TRUE))
+
+svmClass
+svmClass$finalModel
+```
+
+
+```{r}
+# rbfdot=radial, polydot=polynomial, vanilladot=linear
+set.seed(123)
+svmModClass <- ksvm(Species~.,data=mydf,kernel="rbfdot",C=.0625,probability=TRUE)
+
+svmModClass
+```
+
+
